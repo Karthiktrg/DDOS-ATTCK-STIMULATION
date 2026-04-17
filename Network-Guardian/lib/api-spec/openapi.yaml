@@ -1,0 +1,908 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Network Traffic Analysis and DDoS Prevention API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: traffic
+    description: Network traffic monitoring
+  - name: alerts
+    description: Attack alerts and notifications
+  - name: blocklist
+    description: Blocked IP management
+  - name: incidents
+    description: Attack incident history
+  - name: auth
+    description: Authentication
+  - name: stats
+    description: Dashboard statistics
+  - name: scanner
+    description: URL threat scanner and DDoS simulation
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /traffic/snapshot:
+    get:
+      operationId: getTrafficSnapshot
+      tags: [traffic]
+      summary: Get current traffic snapshot
+      description: Returns real-time traffic metrics including packets/sec, bandwidth, protocol distribution
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current traffic snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrafficSnapshot"
+
+  /traffic/history:
+    get:
+      operationId: getTrafficHistory
+      tags: [traffic]
+      summary: Get traffic history
+      description: Returns time-series traffic data for charts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: minutes
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: Number of minutes of history to return
+      responses:
+        "200":
+          description: Traffic history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrafficDataPoint"
+
+  /traffic/top-ips:
+    get:
+      operationId: getTopIps
+      tags: [traffic]
+      summary: Get top IP addresses by traffic volume
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Top IPs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IpTrafficStat"
+
+  /traffic/protocol-distribution:
+    get:
+      operationId: getProtocolDistribution
+      tags: [traffic]
+      summary: Get protocol distribution
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Protocol distribution
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProtocolStat"
+
+  /alerts:
+    get:
+      operationId: getAlerts
+      tags: [alerts]
+      summary: Get recent alerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}/acknowledge:
+    post:
+      operationId: acknowledgeAlert
+      tags: [alerts]
+      summary: Acknowledge an alert
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /blocklist:
+    get:
+      operationId: getBlocklist
+      tags: [blocklist]
+      summary: Get list of blocked IPs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Blocked IPs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BlockedIp"
+
+    post:
+      operationId: blockIp
+      tags: [blocklist]
+      summary: Block an IP address
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockIpRequest"
+      responses:
+        "201":
+          description: IP blocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedIp"
+
+  /blocklist/{id}:
+    delete:
+      operationId: unblockIp
+      tags: [blocklist]
+      summary: Unblock an IP address
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: IP unblocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /incidents:
+    get:
+      operationId: getIncidents
+      tags: [incidents]
+      summary: Get attack incident history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Incident"
+
+  /incidents/export:
+    get:
+      operationId: exportIncidents
+      tags: [incidents]
+      summary: Export incidents as CSV
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [stats]
+      summary: Get dashboard summary statistics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /scan/analyze:
+    post:
+      operationId: scanUrl
+      tags: [scanner]
+      summary: Analyze a URL/domain for threats
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanRequest"
+      responses:
+        "200":
+          description: Scan result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+
+  /scan/simulate-ddos:
+    post:
+      operationId: simulateDdos
+      tags: [scanner]
+      summary: Start a manual DDoS simulation against a target
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateDdosRequest"
+      responses:
+        "200":
+          description: Simulation started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationStatus"
+
+  /scan/simulation-status:
+    get:
+      operationId: getSimulationStatus
+      tags: [scanner]
+      summary: Get current manual simulation status
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current simulation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationStatus"
+
+  /scan/stop-simulation:
+    post:
+      operationId: stopSimulation
+      tags: [scanner]
+      summary: Stop the current manual simulation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Simulation stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /stats/system-health:
+    get:
+      operationId: getSystemHealth
+      tags: [stats]
+      summary: Get system health metrics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: System health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemHealth"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+          enum: [admin, analyst, viewer]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - role
+        - createdAt
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    TrafficSnapshot:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        packetsPerSecond:
+          type: number
+        inboundBandwidthMbps:
+          type: number
+        outboundBandwidthMbps:
+          type: number
+        totalConnections:
+          type: integer
+        suspiciousCount:
+          type: integer
+        blockedCount:
+          type: integer
+        threatLevel:
+          type: string
+          enum: [normal, elevated, high, critical]
+        aiStatus:
+          type: string
+          enum: [monitoring, analyzing, detecting, blocking]
+      required:
+        - timestamp
+        - packetsPerSecond
+        - inboundBandwidthMbps
+        - outboundBandwidthMbps
+        - totalConnections
+        - suspiciousCount
+        - blockedCount
+        - threatLevel
+        - aiStatus
+
+    TrafficDataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        packetsPerSecond:
+          type: number
+        inboundBandwidthMbps:
+          type: number
+        outboundBandwidthMbps:
+          type: number
+        suspiciousCount:
+          type: integer
+        attackCount:
+          type: integer
+      required:
+        - timestamp
+        - packetsPerSecond
+        - inboundBandwidthMbps
+        - outboundBandwidthMbps
+        - suspiciousCount
+        - attackCount
+
+    IpTrafficStat:
+      type: object
+      properties:
+        ip:
+          type: string
+        country:
+          type: string
+        packetsCount:
+          type: integer
+        bytesCount:
+          type: integer
+        classification:
+          type: string
+          enum: [normal, suspicious, attack]
+        isBlocked:
+          type: boolean
+        requestsPerSecond:
+          type: number
+      required:
+        - ip
+        - country
+        - packetsCount
+        - bytesCount
+        - classification
+        - isBlocked
+        - requestsPerSecond
+
+    ProtocolStat:
+      type: object
+      properties:
+        protocol:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+        color:
+          type: string
+      required:
+        - protocol
+        - count
+        - percentage
+        - color
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [ddos_attack, port_scan, brute_force, syn_flood, udp_flood, icmp_flood, http_flood, anomaly]
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        sourceIp:
+          type: string
+        targetPort:
+          type: integer
+          nullable: true
+        message:
+          type: string
+        severityScore:
+          type: number
+        isAcknowledged:
+          type: boolean
+        autoBlocked:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - severity
+        - sourceIp
+        - message
+        - severityScore
+        - isAcknowledged
+        - autoBlocked
+        - createdAt
+
+    BlockedIp:
+      type: object
+      properties:
+        id:
+          type: integer
+        ip:
+          type: string
+        reason:
+          type: string
+        blockedAt:
+          type: string
+          format: date-time
+        autoBlocked:
+          type: boolean
+        attackType:
+          type: string
+          nullable: true
+        packetCount:
+          type: integer
+      required:
+        - id
+        - ip
+        - reason
+        - blockedAt
+        - autoBlocked
+        - packetCount
+
+    BlockIpRequest:
+      type: object
+      properties:
+        ip:
+          type: string
+        reason:
+          type: string
+      required:
+        - ip
+        - reason
+
+    Incident:
+      type: object
+      properties:
+        id:
+          type: integer
+        attackType:
+          type: string
+        sourceIp:
+          type: string
+        targetIp:
+          type: string
+          nullable: true
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        severityScore:
+          type: number
+        peakPacketsPerSecond:
+          type: number
+        duration:
+          type: integer
+          description: Duration in seconds
+        wasBlocked:
+          type: boolean
+        status:
+          type: string
+          enum: [active, mitigated, resolved]
+        startedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - attackType
+        - sourceIp
+        - severity
+        - severityScore
+        - peakPacketsPerSecond
+        - duration
+        - wasBlocked
+        - status
+        - startedAt
+
+    ScanRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          description: The URL or domain to scan
+      required:
+        - url
+
+    ScanResult:
+      type: object
+      properties:
+        url:
+          type: string
+        domain:
+          type: string
+        resolvedIp:
+          type: string
+          nullable: true
+        threatLevel:
+          type: string
+          enum: [safe, low, medium, high, critical]
+        riskScore:
+          type: integer
+          description: 0-100 risk score
+        isTargeted:
+          type: boolean
+          description: Whether this domain is currently targeted in the simulation
+        openPorts:
+          type: array
+          items:
+            type: integer
+        detectedThreats:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreatDetail"
+        recommendations:
+          type: array
+          items:
+            type: string
+        scannedAt:
+          type: string
+          format: date-time
+      required:
+        - url
+        - domain
+        - threatLevel
+        - riskScore
+        - isTargeted
+        - openPorts
+        - detectedThreats
+        - recommendations
+        - scannedAt
+
+    ThreatDetail:
+      type: object
+      properties:
+        type:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [info, low, medium, high, critical]
+      required:
+        - type
+        - description
+        - severity
+
+    SimulateDdosRequest:
+      type: object
+      properties:
+        targetUrl:
+          type: string
+          description: Target URL for the simulation
+        attackType:
+          type: string
+          enum: [syn_flood, udp_flood, http_flood, icmp_flood, slowloris, dns_amplification]
+        durationSeconds:
+          type: integer
+          description: Duration in seconds (10-120)
+          minimum: 10
+          maximum: 120
+      required:
+        - targetUrl
+        - attackType
+        - durationSeconds
+
+    SimulationStatus:
+      type: object
+      properties:
+        isActive:
+          type: boolean
+        targetUrl:
+          type: string
+          nullable: true
+        targetDomain:
+          type: string
+          nullable: true
+        attackType:
+          type: string
+          nullable: true
+        durationSeconds:
+          type: integer
+          nullable: true
+        elapsedSeconds:
+          type: integer
+          nullable: true
+        remainingSeconds:
+          type: integer
+          nullable: true
+        currentPps:
+          type: number
+          nullable: true
+        peakPps:
+          type: number
+          nullable: true
+        packetsGenerated:
+          type: integer
+          nullable: true
+        threatLevel:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - isActive
+
+    DashboardStats:
+      type: object
+      properties:
+        totalPacketsToday:
+          type: integer
+        totalAlertsToday:
+          type: integer
+        totalBlockedIps:
+          type: integer
+        attacksDetectedToday:
+          type: integer
+        attacksPrevented:
+          type: integer
+        avgSeverityScore:
+          type: number
+        uptimePercent:
+          type: number
+        aiAccuracyPercent:
+          type: number
+      required:
+        - totalPacketsToday
+        - totalAlertsToday
+        - totalBlockedIps
+        - attacksDetectedToday
+        - attacksPrevented
+        - avgSeverityScore
+        - uptimePercent
+        - aiAccuracyPercent
+
+    SystemHealth:
+      type: object
+      properties:
+        cpuUsagePercent:
+          type: number
+        memoryUsagePercent:
+          type: number
+        networkInterfaceStatus:
+          type: string
+          enum: [up, down, degraded]
+        captureEngineStatus:
+          type: string
+          enum: [active, inactive, error]
+        aiModelStatus:
+          type: string
+          enum: [loaded, loading, error]
+        databaseStatus:
+          type: string
+          enum: [connected, disconnected, error]
+        lastModelUpdateAt:
+          type: string
+          format: date-time
+        packetDropRate:
+          type: number
+      required:
+        - cpuUsagePercent
+        - memoryUsagePercent
+        - networkInterfaceStatus
+        - captureEngineStatus
+        - aiModelStatus
+        - databaseStatus
+        - lastModelUpdateAt
+        - packetDropRate
